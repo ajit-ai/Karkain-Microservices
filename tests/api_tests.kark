@@ -1,0 +1,68 @@
+// Native tests for Karkain-Microservices.
+
+func sample_registry() {
+    let r = register_service(new_registry(), "orders", "http://orders:8080")
+    return register_service(r, "billing", "http://billing:8081")
+}
+
+func test_new_registry() {
+    assert_eq(service_count(new_registry()), 0)
+    assert_eq(service_health(new_registry(), "x"), "missing")
+}
+
+func test_register_and_count() {
+    let r = sample_registry()
+    assert_eq(service_count(r), 2)
+    assert(has_service(r, "orders"))
+    assert_eq(service_health(r, "orders"), "unknown")
+}
+
+func test_register_replaces() {
+    let r = register_service(sample_registry(), "orders", "http://new:9000")
+    assert_eq(service_count(r), 2)
+    assert_eq(service_endpoint(r, "orders"), "http://new:9000")
+}
+
+func test_service_endpoint() {
+    let r = sample_registry()
+    assert_eq(service_endpoint(r, "billing"), "http://billing:8081")
+    assert_eq(service_endpoint(r, "none"), "")
+}
+
+func test_set_health() {
+    let r = set_health(sample_registry(), "orders", "healthy")
+    assert_eq(service_health(r, "orders"), "healthy")
+    assert_eq(service_health(sample_registry(), "orders"), "unknown")
+}
+
+func test_set_health_unknown_noop() {
+    let r = set_health(new_registry(), "x", "healthy")
+    assert_eq(service_count(r), 0)
+}
+
+func test_dependencies() {
+    let r = set_dependencies(sample_registry(), "orders", "billing,auth")
+    assert(depends_on(r, "orders", "billing"))
+    assert(depends_on(r, "orders", "auth"))
+    assert(depends_on(r, "orders", "missing") == false)
+}
+
+func test_healthy_services() {
+    let r = set_health(set_health(sample_registry(), "orders", "healthy"), "billing", "healthy")
+    let h = healthy_services(r)
+    assert_eq(len(h), 2)
+    assert_eq(service_count(r), 2)
+}
+
+func test_unregister() {
+    let r = unregister_service(sample_registry(), "orders")
+    assert_eq(service_count(r), 1)
+    assert(has_service(r, "orders") == false)
+    assert(has_service(r, "billing"))
+}
+
+func test_describe_service() {
+    let r = set_health(sample_registry(), "orders", "healthy")
+    assert_eq(describe_service(r, "orders"), "orders@http://orders:8080:healthy")
+    assert_eq(describe_service(r, "none"), "none -> <missing>")
+}

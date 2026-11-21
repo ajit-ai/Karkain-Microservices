@@ -1,0 +1,15 @@
+// Integration verification for the Karkain-Microservices public API.
+import microservices
+
+func main() {
+    let r = register_service(new_registry(), "orders", "http://orders:8080")
+    r = register_service(r, "billing", "http://billing:8081")
+    r = set_dependencies(r, "orders", "billing")
+    r = set_health(r, "orders", "healthy")
+    r = set_health(r, "billing", "healthy")
+
+    assert_eq(service_count(r), 2)
+    assert_eq(len(healthy_services(r)), 2)
+    assert(depends_on(r, "orders", "billing"))
+    println(describe_service(r, "orders"))
+}

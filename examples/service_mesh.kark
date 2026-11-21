@@ -1,0 +1,16 @@
+// Karkain-Microservices runnable example: a small service registry.
+import microservices
+
+func main() {
+    let r = new_registry()
+    r = register_service(r, "gateway", "http://gateway:80")
+    r = register_service(r, "orders", "http://orders:8080")
+    r = set_dependencies(r, "gateway", "orders")
+    r = set_health(r, "gateway", "healthy")
+    r = set_health(r, "orders", "unhealthy")
+
+    println(describe_service(r, "gateway"))
+    println(describe_service(r, "orders"))
+    println("services=" + str(service_count(r)))
+    println("healthy=" + str(len(healthy_services(r))))
+}

@@ -1,0 +1,168 @@
+// Karkain-Microservices - independent service composition registry.
+// Karkain Language v1.2.0 verified baseline (tag v1.2.0,
+// commit 77d70693e1e3134dac312a303bffafa7d50fa988).
+//
+// Scope boundary: this framework models service registration, health and
+// declared dependencies in portable Karkain. It does not discover services
+// over the network or manage OS processes.
+//
+// Registry representation: quadruples
+//   [name, endpoint, health, dependencies-string, ...]
+// Arrays are values; mutating functions return the updated registry.
+
+// new_registry returns an empty service registry.
+public func new_registry() {
+    return []
+}
+
+// register_service adds or replaces a named service.
+public func register_service(registry, name, endpoint) {
+    let out = unregister_service(registry, name)
+    out = push(out, name)
+    out = push(out, endpoint)
+    out = push(out, "unknown")
+    out = push(out, "")
+    return out
+}
+
+// unregister_service removes a named service.
+public func unregister_service(registry, name) {
+    let out = []
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            i = i + 4
+        } else {
+            out = push(out, registry[i])
+            out = push(out, registry[i + 1])
+            out = push(out, registry[i + 2])
+            out = push(out, registry[i + 3])
+            i = i + 4
+        }
+    }
+    return out
+}
+
+// service_count returns the number of registered services.
+public func service_count(registry) {
+    return len(registry) / 4
+}
+
+// has_service reports whether a service is registered.
+public func has_service(registry, name) {
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            return true
+        }
+        i = i + 4
+    }
+    return false
+}
+
+// service_endpoint returns the declared endpoint or "".
+public func service_endpoint(registry, name) {
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            return registry[i + 1]
+        }
+        i = i + 4
+    }
+    return ""
+}
+
+// service_health returns the health state or "missing".
+public func service_health(registry, name) {
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            return registry[i + 2]
+        }
+        i = i + 4
+    }
+    return "missing"
+}
+
+// set_health updates the health state of a known service.
+public func set_health(registry, name, state) {
+    if has_service(registry, name) == false {
+        return registry
+    }
+    let out = []
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            out = push(out, registry[i])
+            out = push(out, registry[i + 1])
+            out = push(out, state)
+            out = push(out, registry[i + 3])
+        } else {
+            out = push(out, registry[i])
+            out = push(out, registry[i + 1])
+            out = push(out, registry[i + 2])
+            out = push(out, registry[i + 3])
+        }
+        i = i + 4
+    }
+    return out
+}
+
+// set_dependencies declares a comma-separated dependency list.
+public func set_dependencies(registry, name, deps) {
+    if has_service(registry, name) == false {
+        return registry
+    }
+    let out = []
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            out = push(out, registry[i])
+            out = push(out, registry[i + 1])
+            out = push(out, registry[i + 2])
+            out = push(out, deps)
+        } else {
+            out = push(out, registry[i])
+            out = push(out, registry[i + 1])
+            out = push(out, registry[i + 2])
+            out = push(out, registry[i + 3])
+        }
+        i = i + 4
+    }
+    return out
+}
+
+// depends_on reports whether a service declares a dependency.
+public func depends_on(registry, name, dep) {
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == name {
+            if contains(registry[i + 3], dep) {
+                return true
+            }
+        }
+        i = i + 4
+    }
+    return false
+}
+
+// healthy_services returns the names of healthy services.
+public func healthy_services(registry) {
+    let out = []
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i + 2] == "healthy" {
+            out = push(out, registry[i])
+        }
+        i = i + 4
+    }
+    return out
+}
+
+// describe_service builds a one-line service diagnostic.
+public func describe_service(registry, name) {
+    if has_service(registry, name) == false {
+        return name + " -> <missing>"
+    }
+    return name + "@" + service_endpoint(registry, name) + ":" + service_health(registry, name)
+}

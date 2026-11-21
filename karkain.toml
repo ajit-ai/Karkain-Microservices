@@ -1,0 +1,7 @@
+name = "karkain-microservices"
+version = "0.1.0-dev"
+description = "Service registration and composition registry for Karkain microservices"
+license = "MIT"
+targets = ["native"]
+
+[dependencies]
