@@ -66,3 +66,79 @@ func test_describe_service() {
     assert_eq(describe_service(r, "orders"), "orders@http://orders:8080:healthy")
     assert_eq(describe_service(r, "none"), "none -> <missing>")
 }
+
+// --- Phase 2 regression ---
+
+func test_phase1_regression() {
+    let r = sample_registry()
+    assert_eq(service_count(r), 2)
+    assert(has_service(r, "orders"))
+    let h = set_health(r, "orders", "healthy")
+    assert_eq(service_health(h, "orders"), "healthy")
+    assert(depends_on(set_dependencies(r, "orders", "billing"), "orders", "billing"))
+}
+
+// --- Phase 2 additions ---
+
+func test_service_versions() {
+    let m = set_version(set_version(new_metadata(), "orders", "1.2.0"), "billing", "2.0.0")
+    assert_eq(service_version(m, "orders"), "1.2.0")
+    assert_eq(service_version(m, "missing"), "")
+    assert(version_compatible("1.2.0", "1.1.0"))
+    assert(version_compatible("1.0.0", "1.1.0") == false)
+}
+
+func test_readiness() {
+    let r = mark_ready(mark_ready(new_readiness(), "orders", true), "billing", false)
+    assert(is_service_ready(r, "orders"))
+    assert(is_service_ready(r, "billing") == false)
+    assert(is_service_ready(r, "missing") == false)
+    let off = mark_ready(r, "orders", false)
+    assert(is_service_ready(off, "orders") == false)
+}
+
+func test_timeouts_and_retries() {
+    let t = new_timeout_policy(100)
+    assert(timeout_exceeded(t, 100) == false)
+    assert(timeout_exceeded(t, 101))
+    let retry = new_retry_policy(3, 5)
+    assert(service_should_retry(retry, 2))
+    assert(service_should_retry(retry, 3) == false)
+}
+
+func test_circuit_breaker() {
+    let b = new_breaker(3)
+    assert_eq(breaker_state(b), "closed")
+    let b2 = breaker_failure(breaker_failure(breaker_failure(b)))
+    assert_eq(breaker_state(b2), "open")
+    assert_eq(breaker_state(breaker_success(b2)), "closed")
+}
+
+func test_failure_classification() {
+    assert_eq(classify_failure(1), "transient")
+    assert_eq(classify_failure(2), "transient")
+    assert_eq(classify_failure(9), "permanent")
+}
+
+func test_correlation() {
+    let c = set_correlation(set_correlation(new_correlation(), "orders", "r1"), "billing", "r2")
+    assert_eq(correlation_id(c, "orders"), "r1")
+    assert_eq(correlation_id(c, "billing"), "r2")
+    assert_eq(correlation_id(c, "none"), "")
+    let replaced = set_correlation(c, "orders", "r3")
+    assert_eq(correlation_id(replaced, "orders"), "r3")
+}
+
+func test_shutdown_service() {
+    let r = set_health(sample_registry(), "orders", "healthy")
+    let s = shutdown_service(r, "orders")
+    assert_eq(service_health(s, "orders"), "stopped")
+    assert_eq(service_health(r, "orders"), "healthy")
+}
+
+func test_service_config() {
+    let c = set_service_config(set_service_config(new_service_config(), "orders", "url", "local"), "orders", "timeout", "50")
+    assert_eq(service_config_value(c, "orders", "url", ""), "local")
+    assert_eq(service_config_value(c, "orders", "timeout", "0"), "50")
+    assert_eq(service_config_value(c, "orders", "missing", "x"), "x")
+}

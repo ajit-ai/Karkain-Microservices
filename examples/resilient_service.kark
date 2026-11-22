@@ -1,0 +1,18 @@
+// Karkain-Microservices Phase 2 example: in-process resilience contracts.
+import microservices
+
+func main() {
+    let reg = register_service(new_registry(), "orders", "http://orders:8080")
+    let ready = mark_ready(new_readiness(), "orders", true)
+    let versions = set_version(new_metadata(), "orders", "1.2.0")
+
+    let breaker = breaker_failure(breaker_failure(new_breaker(3)))
+    let retry = new_retry_policy(3, 10)
+
+    println("health=" + service_health(reg, "orders"))
+    println("ready=" + str(is_service_ready(ready, "orders")))
+    println("version=" + service_version(versions, "orders"))
+    println("breaker=" + breaker_state(breaker))
+    println("retry=" + str(service_should_retry(retry, 2)))
+    println("failure=" + classify_failure(1))
+}

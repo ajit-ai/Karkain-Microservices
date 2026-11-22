@@ -166,3 +166,210 @@ public func describe_service(registry, name) {
     }
     return name + "@" + service_endpoint(registry, name) + ":" + service_health(registry, name)
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 additions. Phase 1 registry and dependency APIs are unchanged.
+// All resilience behaviour is in-process; distributed discovery and IPC are
+// BLOCKED by the absence of socket builtins in the verified v1.2.0 subset.
+
+// new_metadata creates a service version metadata store.
+public func new_metadata() {
+    return []
+}
+
+// set_version records a service version.
+public func set_version(metadata, name, version) {
+    let out = []
+    out = push(out, name)
+    out = push(out, version)
+    let i = 0
+    while (i < len(metadata)) {
+        if metadata[i] == name {
+            i = i + 2
+        } else {
+            out = push(out, metadata[i])
+            out = push(out, metadata[i + 1])
+            i = i + 2
+        }
+    }
+    return out
+}
+
+// service_version returns a recorded version or "".
+public func service_version(metadata, name) {
+    let i = 0
+    while (i < len(metadata)) {
+        if metadata[i] == name { return metadata[i + 1] }
+        i = i + 2
+    }
+    return ""
+}
+
+// version_compatible compares equal-format version labels.
+public func version_compatible(current, required) {
+    return current >= required
+}
+
+// new_readiness creates a readiness store.
+public func new_readiness() {
+    return []
+}
+
+// mark_ready sets readiness for a service.
+public func mark_ready(readiness, name, ready) {
+    let out = []
+    out = push(out, name)
+    out = push(out, ready)
+    let i = 0
+    while (i < len(readiness)) {
+        if readiness[i] == name {
+            i = i + 2
+        } else {
+            out = push(out, readiness[i])
+            out = push(out, readiness[i + 1])
+            i = i + 2
+        }
+    }
+    return out
+}
+
+// is_service_ready reports whether a service is ready.
+public func is_service_ready(readiness, name) {
+    let i = 0
+    while (i < len(readiness)) {
+        if readiness[i] == name {
+            if readiness[i + 1] { return true }
+        }
+        i = i + 2
+    }
+    return false
+}
+
+// new_timeout_policy creates a timeout policy.
+public func new_timeout_policy(limit) {
+    let p = []
+    p = push(p, limit)
+    return p
+}
+
+// timeout_exceeded reports whether elapsed time exceeds a limit.
+public func timeout_exceeded(policy, elapsed) {
+    return elapsed > policy[0]
+}
+
+// new_retry_policy creates a bounded retry policy.
+public func new_retry_policy(max_attempts, delay) {
+    let p = []
+    p = push(p, max_attempts)
+    p = push(p, delay)
+    return p
+}
+
+// service_should_retry reports whether another attempt is allowed.
+public func service_should_retry(policy, attempts) {
+    return attempts < policy[0]
+}
+
+// new_breaker creates a closed circuit breaker with a failure threshold.
+public func new_breaker(threshold) {
+    let b = []
+    b = push(b, threshold)
+    b = push(b, 0)
+    b = push(b, 0)
+    return b
+}
+
+// breaker_failure records a failure and returns an updated breaker.
+public func breaker_failure(breaker) {
+    let out = []
+    out = push(out, breaker[0])
+    out = push(out, breaker[1] + 1)
+    out = push(out, breaker[2])
+    return out
+}
+
+// breaker_success resets the failure count.
+public func breaker_success(breaker) {
+    let out = []
+    out = push(out, breaker[0])
+    out = push(out, 0)
+    out = push(out, breaker[2] + 1)
+    return out
+}
+
+// breaker_state returns "open" when the threshold is reached.
+public func breaker_state(breaker) {
+    if breaker[1] >= breaker[0] { return "open" }
+    return "closed"
+}
+
+// classify_failure maps an error code to a resilience class.
+public func classify_failure(code) {
+    if code == 1 { return "transient" }
+    if code == 2 { return "transient" }
+    return "permanent"
+}
+
+// new_correlation creates a correlation store.
+public func new_correlation() {
+    return []
+}
+
+// set_correlation records a correlation id for a service call.
+public func set_correlation(store, service, id) {
+    let out = []
+    out = push(out, service)
+    out = push(out, id)
+    let i = 0
+    while (i < len(store)) {
+        if store[i] == service {
+            i = i + 2
+        } else {
+            out = push(out, store[i])
+            out = push(out, store[i + 1])
+            i = i + 2
+        }
+    }
+    return out
+}
+
+// correlation_id returns a recorded id or "".
+public func correlation_id(store, service) {
+    let i = 0
+    while (i < len(store)) {
+        if store[i] == service { return store[i + 1] }
+        i = i + 2
+    }
+    return ""
+}
+
+// shutdown_service marks a registered service as stopped.
+public func shutdown_service(registry, name) {
+    return set_health(registry, name, "stopped")
+}
+
+// new_service_config creates a service configuration store.
+public func new_service_config() {
+    return []
+}
+
+// set_service_config records a configuration value.
+public func set_service_config(config, service, key, value) {
+    let out = config
+    out = push(out, service)
+    out = push(out, key)
+    out = push(out, value)
+    return out
+}
+
+// service_config_value returns a configuration value or a fallback.
+public func service_config_value(config, service, key, fallback) {
+    let i = 0
+    while (i < len(config)) {
+        if config[i] == service {
+            if config[i + 1] == key { return config[i + 2] }
+        }
+        i = i + 3
+    }
+    return fallback
+}
